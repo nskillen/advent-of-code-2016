@@ -21,16 +21,19 @@
 
 #include <pcre.h>
 
+#include "helpers/DEBUG.h"
 #include "helpers/linked_list.h"
 #include "helpers/read_puzzle_input.h"
 #include "helpers/sorting.h"
+#include "helpers/vector.h"
 
-void process_line(void*, int data_len);
-void process_line_p2(void*, int data_len);
+void process_line(void*, size_t data_len);
+void process_line_p2(void*, size_t data_len);
 
 int sector_id_sum = 0;
 static const char *pattern = "^([a-z-]+)-([0-9]{3})\\[([a-z]{5})\\]$";
 static pcre *rx = NULL;
+static vector *rooms = NULL;
 
 int main(int argc, char **argv) {
 	linked_list *input_lines = NULL;
@@ -52,14 +55,21 @@ int main(int argc, char **argv) {
 
 	printf("The sum of the sector IDs for the real rooms is %d!\n", sector_id_sum);
 
+  printf("Decrypting rooms...\n");
+
+  list_each(input_lines, process_line_p2);
+
 	pcre_free(rx);
 
 	return 0;
 }
 
-int list_comp(void *a, void *b) {
+int comp(void *a, void *b) {
 	char *_a = (char*)a;
 	char *_b = (char*)b;
+
+  if (DEBUG) { printf("_a: 0x%X\n_b: 0x%X\n", (unsigned int)_a, (unsigned int)_b); }
+  if (DEBUG) { printf("Comparing ('%c',%d) to ('%c',%d)\n", _a[0] + 'a', _a[1], _b[0] + 'a', _b[1]); }
 
 	if (_a[1] > _b[1]) { return -1; }
 	if (_a[1] < _b[1]) { return 1; }
@@ -68,21 +78,58 @@ int list_comp(void *a, void *b) {
 	return 0;
 }
 
-void process_line(void *data, int data_len) {
-	char *line = calloc(data_len, sizeof(char));
-	strcpy(line, data);
+typedef struct {
+  char *name;
+  char *encrypted_name;
+  int sector_id;
+  char checksum[5];
+} room;
 
+int is_room_real(room r) {
+  if (DEBUG) { printf("Is-room-real: r{ encrypted_name: \"%s\", sector_id: %d, checksum: \"%s\" }\n", r.encrypted_name, r.sector_id, r.checksum); }
 	char letters[26];
 	memset(letters, 0, 26 * sizeof(char));
 
-	char checksum[6];
-	int sector_id;
-	char* encrypted_name;
+	for (size_t i = 0; i < strlen(r.encrypted_name); i++) {
+    if (r.encrypted_name[i] < 'a' || r.encrypted_name[i] > 'z') { continue; }
+		letters[r.encrypted_name[i] - 'a'] += 1;
+	}
 
-	memset(checksum, 0, 6 * sizeof(char));
-	sector_id = 0;
-	encrypted_name = calloc(strlen(line) - 10 + 1, sizeof(char));
+	vector *tmp = vector_create(2 * sizeof(char), 26, 1, comp);
+	for (size_t i = 0; i < 26; i++) {
+		char thing[2] = { i, letters[i] };
+		vector_push(tmp, thing);
+	}
+  if (DEBUG) { printf ("before sort\n"); }
+	v_insertion_sort(tmp);
+  if (DEBUG) { printf ("after sort\n"); }
 
+  for (size_t i = 0; i < 5; i++) {
+    char* t = (char*)vector_get(tmp, i);
+    if (t[0] + 'a' != r.checksum[i]) {
+      free(t);
+      return 0;
+    }
+    free(t);
+  }
+
+  return 1;
+}
+
+void decrypt_room(room *r) {
+  r->name = (char*)calloc(strlen(r->encrypted_name)+1, sizeof(char));
+  for (size_t i = 0; i < strlen(r->encrypted_name); i++) {
+    char c = r->encrypted_name[i];
+    if (c >= 'a' && c <= 'z') {
+      c -= 'a';
+      c = (c + (r->sector_id % 26)) % 26;
+      r->name[i] = c + 'a';
+    } else { r->name[i] = c; }
+  }
+}
+
+void line_to_room(char *line, room *r) {
+  if (DEBUG) { printf("Line-to-room: %s\n", line); }
 	int offsets[30];
 	int result = pcre_exec(rx, NULL, line, strlen(line), 0, 0, offsets, 30);
 	if (result < 0) {
@@ -99,23 +146,57 @@ void process_line(void *data, int data_len) {
 	}
 
 	int crypted_len = offsets[3] - offsets[2];
-	encrypted_name = malloc(crypted_len * sizeof(char));
-	memcpy(encrypted_name, line + offsets[2], crypted_len);
-	encrypted_name[crypted_len] = 0;
+	r->encrypted_name = calloc(crypted_len + 1, sizeof(char));
+  if (r->encrypted_name == NULL) {
+    fprintf(stderr, "ERROR, unable to allocate %d bytes of memory for the encrypted name\nwith room string %s\n", crypted_len, line);
+    exit(1);
+  }
+	memcpy(r->encrypted_name, line + offsets[2], crypted_len);
 
-	memcpy(letters, line + offsets[4], 3);
-	sector_id = atoi(letters);
+  line[offsets[6] - 1] = 0;
+	r->sector_id = atoi(line + offsets[4]);
+  line[offsets[6] - 1] = '[';
 
-	memcpy(checksum, line + offsets[6], 5);
-
-	for (size_t i = 0; i < strlen(encrypted_name); i++) {
-		letters[encrypted_name[i] - 'a'] += 1;
-	}
-
-	linked_list *tmp = create_list(NULL, list_comp);
-	for (size_t i = 0; i < 26; i++) {
-		char thing[2] = { i, letters[i] };
-		list_insert(tmp, thing, sizeof(char[2]));
-	}
-	selection_sort(tmp);
+	memcpy(r->checksum, line + offsets[6], 5);
+  decrypt_room(r);
 }
+
+void process_line(void *data, size_t data_len) {
+	char *line = calloc(data_len, sizeof(char));
+	strcpy(line, data);
+
+  if (DEBUG) { printf("process-line: %s\n", line); }
+
+  if (rooms == NULL) { rooms = vector_create(sizeof(room), 20, 1, NULL); }
+
+  room r;
+  line_to_room(line, &r);
+
+  if (is_room_real(r)) {
+    sector_id_sum += r.sector_id;
+    vector_push(rooms, &r);
+  }
+}
+
+void print_room(room r) {
+  char *en = r.encrypted_name;
+  char *n = r.name;
+  int sid = r.sector_id;
+  char *cs = calloc(6, sizeof(char));
+  memcpy(cs, r.checksum, 5);
+  printf("Room %s:\n\tEncrypted name: %s\n\tSector ID: %d\n\tChecksum: %s\n", n, en, sid, cs);
+  free(cs);
+
+}
+
+void process_line_p2(void *data, size_t data_len) {
+  char *line = (char*)calloc(data_len + 1, sizeof(char));
+  strcpy(line, data);
+
+  if (DEBUG) { printf("process-data-p2: %s\n", line); }
+
+  for (size_t i = 0; i < rooms->element_count; i++) {
+    print_room(*((room*)vector_get(rooms, i)));
+  }
+}
+

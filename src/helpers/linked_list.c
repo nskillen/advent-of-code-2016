@@ -5,6 +5,38 @@
 #include <stdlib.h>
 #include <string.h>
 
+/** Helper Functions **/
+
+static list_node* _create_node(void *data, size_t data_len) {
+  list_node *n = (list_node*)calloc(1, sizeof(list_node));
+  if (n == NULL) { return NULL; }
+
+  n->data_len = data_len;
+  n->data = malloc(data_len);
+  if (n->data == NULL) {
+    free(n);
+    return NULL;
+  }
+  memcpy(n->data, data, data_len);
+
+  return n;
+}
+
+static list_node* find(linked_list *list, void *data) {
+	list_node *n = list->front;
+
+	while (n != NULL) {
+		if (list->comparator != NULL && list->comparator(data, n->data)) { break; }
+		else if (data == n->data) { break; }
+
+		n = n->next;
+	}
+
+	return n;
+}
+
+/* Public list functions */
+
 linked_list* create_list(deletion_callback deleter, comparison_callback comparator) {
 	linked_list* ll = (linked_list*)calloc(1, sizeof(linked_list));
 	if (ll == NULL) { return NULL; }
@@ -28,32 +60,80 @@ void destroy_list(linked_list *list) {
 	free(list);
 }
 
+int list_push(linked_list *list, void* data, size_t data_len) {
+  list_node *new_node = _create_node(data, data_len);
+  if (new_node == NULL) { return 0; }
+
+  if (list->front == NULL) {
+    list->front = new_node;
+    list->back = new_node;
+  } else {
+    new_node->prev = list->back;
+    list->back->next = new_node;
+    list->back = new_node;
+  }
+  list->length += 1;
+  return 1;
+}
+
 int list_insert_at(linked_list *list, size_t position, void *data, size_t data_len) {
-	list_node *new_node = (list_node*)calloc(1, sizeof(list_node));
+  /* can insert AT end of list, but not PAST end of list */
+  if (list->length < position) { return 0; }
+  list_node *node_at_position = list->front;
+  for (size_t i = 0; i < position; i++) {
+    node_at_position = node_at_position->next;
+    if (i+1 < position && node_at_position == NULL) {
+      /* broken link, entire list is fucked */
+      return 0;
+    }
+  }
+
+	list_node *new_node = _create_node(data, data_len);
 	if (new_node == NULL) { return 0; }
 
-	new_node->data = malloc(data_len);
-	if (new_node->data == NULL) {
-		free(new_node);
-		return 0;
-	}
-	memcpy(new_node->data, data, data_len);
-	new_node->data_len = data_len;
 	new_node->next = NULL;
 	new_node->prev = NULL;
 
-	if (list->front == NULL) {
-		list->front = new_node;
-		list->back = new_node;
+	if (node_at_position == NULL) {
+    /* requested position is at end of list */
+    new_node->prev = list->back;
+    list->back->next = new_node;
+    list->back = new_node;
 	} else {
-		list->back->next = new_node;
-		new_node->prev = list->back;
-		list->back = new_node;
+    new_node->prev = node_at_position->prev;
+    new_node->next = node_at_position;
+
+    node_at_position->prev->next = new_node;
+    node_at_position->prev = new_node;
 	}
 
 	list->length += 1;
 
 	return 1;
+}
+
+void* list_pop(linked_list *list) {
+  if (list->back == NULL) { return NULL; }
+
+  list_node *n = list->back;
+  list->back = list->back->prev;
+  if (list->back == NULL) { list->front = NULL; }
+  list->length -= 1;
+
+  void *data = n->data;
+  n->data = NULL;
+  free(n);
+
+  return data;
+}
+
+void* list_get_at_position(linked_list *list, size_t position) {
+	list_node *n = list->front;
+	for (size_t p = 0; p <= position && n != NULL; p++) {
+		n = n->next;
+	}
+	if (n == NULL) { return NULL; }
+	return n->data;
 }
 
 int list_remove(linked_list *list, void *data) {
@@ -83,30 +163,8 @@ int list_remove(linked_list *list, void *data) {
 	return 1;
 }
 
-list_node* find(linked_list *list, void *data) {
-	list_node *n = list->front;
-
-	while (n != NULL) {
-		if (list->comparator != NULL && list->comparator(data, n->data)) { break; }
-		else if (data == n->data) { break; }
-
-		n = n->next;
-	}
-
-	return n;
-}
-
 int list_contains(linked_list *list, void* data) {
 	return find(list, data) != NULL;
-}
-
-void* list_get_at_position(linked_list *list, size_t position) {
-	list_node *n = list->front;
-	for (size_t p = 0; p <= position && n != NULL; p++) {
-		n = n->next;
-	}
-	if (n == NULL) { return NULL; }
-	return n->data;
 }
 
 void list_each(linked_list *list, iterator_callback iterator) {
@@ -133,8 +191,8 @@ void list_move_element(linked_list *list, void *data, void *tgt_data, relative_p
 
 	if (from == NULL || to == NULL) { return; }
 
-	if (list->front == from) { list->front == from->next; }
-	if (list->back == from) { list->back == from->prev; }
+	if (list->front == from) { list->front = from->next; }
+	if (list->back == from) { list->back = from->prev; }
 	if (from->prev) { from->prev->next = from->next; }
 	if (from->next) { from->next->prev = from->prev; }
 

@@ -11,8 +11,8 @@
 
 int impossible_count = 0;
 
-void process_line(void*, int data_len);
-void process_line_p2(void*, int data_len);
+void process_line(void*, size_t data_len);
+void process_line_p2(void*, size_t data_len);
 
 int main(int argc, char **argv) {
 	linked_list *input_lines = NULL;
@@ -24,13 +24,13 @@ int main(int argc, char **argv) {
 	
 	list_each(input_lines, process_line);
 
-	printf("There are %d possible triangles!\n", input_lines->length - impossible_count);
+	printf("There are %lu possible triangles!\n", input_lines->length - impossible_count);
 
 	impossible_count = 0;
 	list_each(input_lines, process_line_p2);
 
 	printf("Oops, the triangles are written vertically!\n");
-	printf("There are %d possible triangles!\n", input_lines->length - impossible_count);
+	printf("There are %lu possible triangles!\n", input_lines->length - impossible_count);
 
 	return 0;
 }
@@ -55,7 +55,7 @@ int impossible_print(int sides[3]) {
 	return impossible(sides);
 }
 
-void process_line(void *data, int data_len) {
+void process_line(void *data, size_t data_len) {
 	char *line = calloc(data_len, sizeof(char));
 	strcpy(line, data);
 
@@ -70,7 +70,7 @@ void process_line(void *data, int data_len) {
 	free(line);
 }
 
-void process_line_p2(void *data, int data_len) {
+void process_line_p2(void *data, size_t data_len) {
 	char *line = calloc(data_len, sizeof(char));
 	strcpy(line, data);
 

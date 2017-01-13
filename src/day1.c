@@ -11,7 +11,7 @@ const char *data_file = "day1.txt";
 void turn_right();
 void turn_left();
 void travel();
-void process_line(void *data, int data_len);
+void process_line(void *data, size_t data_len);
 
 enum { NORTH, EAST, SOUTH, WEST };
 
@@ -36,14 +36,17 @@ int facing = NORTH;
 int steps[4] = { 0, 0, 0, 0 };
 int loc_x = 0, loc_y = 0;
 
-const char *filename = "day1.txt";
-
 int main(int argc, char **argv) {
 	visited_locations = create_list(delete_location, compare_locations);
+  linked_list *input_lines = NULL;
 
-	linked_list *input_lines = read_puzzle_input(filename);
+  if (argc > 1) {
+    input_lines = read_puzzle_input(argv[1]);
+  } else {
+    input_lines = read_puzzle_input("day1.txt");
+  }
 	if (input_lines == NULL || input_lines->length == 0) {
-		fprintf(stderr, "Unable to read input from %s!\n", filename);
+		fprintf(stderr, "Unable to read input from %s!\n", "day1.txt");
 		exit(1);
 	}
 
@@ -66,8 +69,10 @@ int main(int argc, char **argv) {
 	exit(0);
 }
 
-void process_line(void *data, int data_len) {
-	char *contents = (char*)data;
+void process_line(void *data, size_t data_len) {
+	char *contents = calloc(data_len + 1, sizeof(char));
+  memcpy(contents, data, data_len);
+
 	char *tok = strtok(contents, DELIMS);
 	do {
 		switch (tok[0]) {
@@ -84,9 +89,11 @@ void process_line(void *data, int data_len) {
 		}
 		travel(facing, atoi(tok+1), steps);
 	} while ((tok = strtok(NULL, DELIMS)) != NULL);
+
+  free(contents);
 }
 
-void turn_right() { facing = ++facing % 4; }
+void turn_right() { facing += 1; facing = facing % 4; }
 void turn_left() { if (facing == 0) { facing = 3; } else { --facing; } }
 
 void travel(int heading, int distance, int *steps) {
@@ -114,7 +121,7 @@ void travel(int heading, int distance, int *steps) {
 			twice_visited[0] = loc_x;
 			twice_visited[1] = loc_y;
 		} else if (twice_visited[0] == -1) {
-			list_insert(visited_locations, loc, sizeof(loc));
+			list_push(visited_locations, loc, sizeof(loc));
 		}
 	}
 }

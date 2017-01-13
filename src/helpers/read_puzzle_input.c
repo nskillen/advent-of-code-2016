@@ -1,5 +1,7 @@
 #include "read_puzzle_input.h"
 
+#include "debug.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -24,6 +26,8 @@ linked_list* read_puzzle_input(const char *filename) {
 	flen = ftell(fp) + 1;
 	fseek(fp, 0, SEEK_SET);
 
+  if (DEBUG) { printf("Reading %d bytes from file %s\n", flen, filename); }
+
 	contents = (char*)calloc(flen, sizeof(char));
 	if (contents == NULL) {
 		fprintf(stderr, "Unable to allocate %d bytes to read from file %s\n", flen, filename);
@@ -34,11 +38,19 @@ linked_list* read_puzzle_input(const char *filename) {
 	fread(contents, sizeof(char), flen, fp);
 	fclose(fp);
 
+  if (DEBUG) { printf("contents read, file closed.\n"); }
+
 	tok = strtok(contents, DELIMS);
 
-	do { list_insert(list, tok, 1+strlen(tok)); } while ((tok = strtok(NULL, DELIMS)) != NULL);
+  
+
+	do {
+    list_push(list, tok, 1+strlen(tok));
+  } while ((tok = strtok(NULL, DELIMS)) != NULL);
 
 	free(contents);
+
+  if (DEBUG) { printf("Tokenizing complete, returning list to caller\n"); }
 
 	return list;
 }

@@ -29,8 +29,8 @@ char place_values[5][5] = {
 	{ 0,  0, 13,  0, 0 }
 };
 
-void process_input(int list_index, void *data, int data_len);
-void process_input_part_2(int list_index, void *data, int data_len);
+void process_input(size_t list_index, void *data, size_t data_len);
+void process_input_part_2(size_t list_index, void *data, size_t data_len);
 
 int main(int argc, char **argv) {
 	linked_list *input_lines = NULL;
@@ -64,10 +64,11 @@ int main(int argc, char **argv) {
 	return 0;
 }
 
-void process_input(int list_index, void *data, int data_len) {
-	char *line = (char*)data;
+void process_input(size_t list_index, void *data, size_t data_len) {
+	char *line = (char*)calloc(data_len + 1, sizeof(char));
+  memcpy(line, data, data_len);
 
-	for (int i = 0; i < strlen(line); i++) {
+	for (size_t i = 0; i < strlen(line); i++) {
 		switch (line[i]) {
 			case 'U':
 				if (position > 3) { position -= 3; }
@@ -89,15 +90,18 @@ void process_input(int list_index, void *data, int data_len) {
 
 	code_digits[list_index] = position;
 
+  free(line);
+
 }
 
-void process_input_part_2(int list_index, void *data, int data_len) {
-	char *line = (char*)data;
+void process_input_part_2(size_t list_index, void *data, size_t data_len) {
+	char *line = (char*)calloc(data_len + 1, sizeof(char));
+  memcpy(line, data, data_len);
 
 	int *x = &position_p2[0];
 	int *y = &position_p2[1];
 
-	for (int i = 0; i < strlen(line); i++) {
+	for (size_t i = 0; i < strlen(line); i++) {
 		switch (line[i]) {
 			case 'U':
 				if (*y > 0 && can_move_to[(*y)-1][*x]) { *y -= 1; }
@@ -118,5 +122,7 @@ void process_input_part_2(int list_index, void *data, int data_len) {
 	}
 
 	code_digits[list_index] = place_values[*y][*x];
+
+  free(line);
 }
 
